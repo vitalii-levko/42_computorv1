@@ -1,0 +1,350 @@
+#!/usr/local/bin/python3
+# title       : computor
+# description : second degree polynomial equation solver
+# author      : Vitalii Levko
+# email       : vlevko@student.unit.ua
+# date        : 20191029
+# version     : 0.1
+# usage       : ./computor polynom
+
+import argparse
+import os
+import re
+import sys
+
+
+def ft_abs(v):
+  return v if v >= 0 else -v
+
+
+def ft_sqrt(v):
+  x = v / 2
+  y = 1
+  e = 0.000001
+  while x - y > e:
+    x = (x + y) / 2
+    y = v / x
+  return x
+
+
+def ft_precision(v):
+  s = str(v)
+  if v.is_integer() or not '.' in s:
+    return 0
+  prec = len(s) - s.index('.') - 1
+  return prec if prec < 6 else 6
+
+
+def computor(polynom, verbose, multi, natural, count):
+  ##=== START parse user input
+  pattern = re.compile(r"((?:\s+)*([-=+\s]+)*(?:\s+)*([\d\.\d]+)*(?:\s+)*(?:\*+)*(?:\s+)*([A-Za-z]+)*((?:\^+)+(?:\s+)*\d*)*(?:\s+)*(?:\*+)*(?:\s+)*([\d\.\d]+)*(?:\s+)*)")
+  storage = []
+
+  for match in re.findall(pattern, polynom.strip()):
+    if match[0]:
+      obj = {
+        'exp': match[0].strip(),
+        'sign': match[1].strip(),
+        'pre': match[2].strip(),
+        'x': match[3].strip(),
+        'pow': match[4].strip(),
+        'post': match[5].strip()
+      }
+      storage.append(obj)
+  ##=== END parse user input
+
+  if count > 1:
+    print('Solving polynom:', polynom, '\n')
+
+  ##=== START parse power to int number
+  digit_pattern = re.compile(r"\d+")
+
+  for obj in storage:
+    power = digit_pattern.search(obj['pow'])
+
+    if power:
+      obj['pow'] = int(power[0])
+    elif obj['x']:
+      obj['pow'] = 1
+  ##=== END parse power to int
+
+  ##=== START parse sign queue and check it has one equal sign queue
+  found_equal = False
+
+  for obj in storage:
+    s = obj['sign']
+
+    ## equal sign queue
+    if '=' in s:
+      if found_equal:
+        if verbose:
+          print('error:', 'multiple equal sign')
+        else:
+          print('error')
+        if multi - 1 > 0:
+          print('')
+        return
+
+      s = s[s.rfind('=')+1:].strip()
+      found_equal = True
+      obj['sign'] = s
+
+    ## -+ sign queue
+    if len(s) > 1:
+      sign = '+'
+      for v in s:
+        if v.strip() == '-':
+          sign = '+' if sign == '-' else '-'
+
+      obj['sign'] = sign
+
+    ## toggle sign to opposite if it after equal sign
+    if found_equal:
+      obj['sign'] = '+' if obj['sign'] == '-' else '-'
+  ##=== END parse sign queue
+
+  ##=== START simplify/reduce to simple polynom
+  formatted = {}
+
+  for obj in storage:
+    power = obj['pow']
+    sign = obj['sign']
+
+    pre = 1
+    if obj['pre']:
+      if '.' in obj['pre']:
+        pre = float(obj['pre'])
+      else:
+        pre = int(obj['pre'])
+
+    post = 1
+    if obj['post']:
+      if '.' in obj['post']:
+        post = float(obj['post'])
+      else:
+        post = int(obj['post'])
+
+    v = pre * post
+    if power in formatted:
+      formatted[power] += v if sign != '-' else -v
+    elif power != '':
+      formatted[power] = v if sign != '-' else -v
+    elif 0 in formatted:
+      formatted[0] += v if sign != '-' else -v
+    else:
+      formatted[0] = v if sign != '-' else -v
+  ##=== END of simplify
+
+  ##=== START print formatted polynom --- BONUS: сделать вывод в натуральной форме то есть без аргументов с нулевым коэффициентом
+  print('Reduced form:', end=' ')
+  i = 0
+  for k, v in formatted.items():
+    s = '+' if v >= 0 else '-'
+    if natural and v == 0:
+      continue
+    if i == 0:
+      if s == '-':
+        if natural and k == 0:
+          print("{} {}".format(s, ft_abs(v)), end='')
+        elif natural and k == 1:
+          if v == 1:
+            print("{} X".format(s), end='')
+          else:
+            print("{} {} * X".format(s, ft_abs(v)), end='')
+        else:
+          if natural and v == 1:
+            print("{} X^{}".format(s, k), end='')
+          else:
+            print("{} {} * X^{}".format(s, ft_abs(v), k), end='')
+      else:
+        if natural and k == 0:
+          print("{}".format(ft_abs(v)), end='')
+        elif natural and k == 1:
+          if v == 1:
+            print("X", end='')
+          else:
+            print("{} * X".format(ft_abs(v)), end='')
+        else:
+          if natural and v == 1:
+            print("X^{}".format(k), end='')
+          else:
+            print("{} * X^{}".format(ft_abs(v), k), end='')
+    else:
+      if natural and k == 0:
+        print(" {} {}".format(s, ft_abs(v)), end='')
+      elif natural and k == 1:
+        if v == 1:
+          print(" {} X".format(s), end='')
+        else:
+          print(" {} {} * X".format(s, ft_abs(v)), end='')
+      else:
+        if natural and v == 1:
+          print(" {} X^{}".format(s, k), end='')
+        else:
+          print(" {} {} * X^{}".format(s, ft_abs(v), k), end='')
+    i += 1
+
+  print(' = 0')
+  ##=== END print formatted
+
+  ##=== START print polynom degree
+  formattedCopy = formatted.copy()
+  max_power = max(formattedCopy.keys())
+  while formatted[max_power] == 0:
+    formattedCopy.pop(max_power, None)
+    if not formattedCopy:
+      max_power = 0
+      break      
+    max_power = max(formattedCopy.keys())
+  print('Polynomial degree:', max_power)
+  ##=== END print polynom degree
+
+  ##=== START check max polynom degree
+  if max_power > 2:
+    print("The polynomial degree is strictly greater than 2, I can't solve.")
+    if multi - 1 > 0:
+          print('')
+    return
+  ##=== END check max polynom degree
+
+  ##=== START solve
+  x_value = None
+  if 2 in formatted.keys() and formatted[2] != 0:
+    a = formatted.get(2, 0)
+    b = formatted.get(1, 0)
+    c = formatted.get(0, 0)
+    d = b * b - 4 * a * c
+    if verbose:
+      print('Discriminant value:', d)
+    if d < 0:
+      print('Discriminant is strictly negative, the two complex solutios are:')
+      x_value = -b/2
+      prec = ft_precision(x_value)
+      if prec == 0:
+        print(x_value, "+", end=' ')
+      else:
+        print("{:.{precision}f} +".format(x_value, precision=prec), end=' ')
+      x_value = ft_sqrt(ft_abs(d)) / 2
+      prec = ft_precision(x_value)
+      if prec == 0:
+        print(x_value, "* i")
+      else:
+        print("{:.{precision}f} * i".format(x_value, precision=prec))
+      x_value = -b/2
+      prec = ft_precision(x_value)
+      if prec == 0:
+        print(x_value, "-", end=' ')
+      else:
+        print("{:.{precision}f} -".format(x_value, precision=prec), end=' ')
+      x_value = ft_sqrt(ft_abs(d)) / 2
+      prec = ft_precision(x_value)
+      if prec == 0:
+        print(x_value, "* i")
+      else:
+        print("{:.{precision}f} * i".format(x_value, precision=prec))
+    elif d == 0:
+      try:
+        print('Discriminant is strictly zero, the solution is:')
+        x_value = -b / (2 * a)
+        prec = ft_precision(x_value)
+        print("{:.{precision}f}".format(x_value, precision=prec))
+      except Exception as e:
+        if verbose:
+          print('error:', e)
+        else:
+          print('error')
+        if multi - 1 > 0:
+          print('')
+        return
+    else:
+      try:
+        print('Discriminant is strictly positive, the two solutions are:')
+        x_value = (-b - ft_sqrt(d)) / (2 * a)
+        prec = ft_precision(x_value)
+        print("{:.{precision}f}".format(x_value, precision=prec))
+        x_value = (-b + ft_sqrt(d)) / (2 * a)
+        prec = ft_precision(x_value)
+        print("{:.{precision}f}".format(x_value, precision=prec))
+      except Exception as e:
+        if verbose:
+          print('error:', e)
+        else:
+          print('error')
+        if multi - 1 > 0:
+          print('')
+        return
+
+  elif 1 in formatted.keys() and formatted[1] != 0:
+    a = formatted.get(0, 0)
+    b = formatted.get(1, 0)
+    if b == 0:
+      x_value = 'All the real numbers'
+    else:
+      try:
+        x_value = -a/b
+      except Exception as e:
+        if verbose:
+          print('error', e)
+        else:
+          print('error')
+        if multi - 1 > 0:
+          print('')
+        return
+    print('The solution is:')
+    if type(x_value) is str:
+      print(x_value)
+    else:
+      prec = ft_precision(x_value)
+      print("{:.{precision}f}".format(x_value, precision=prec))
+  else:
+    c = formatted.get(0, 0)
+    if c == 0:
+      print('The solution is:')
+      print('All the real numbers')
+    else:
+      print('No possible solution')
+
+  if multi - 1 > 0:
+    print('')
+  ##=== END solve
+
+
+def _main():
+  parser = argparse.ArgumentParser(
+    description='Second degree polynomial equation solver')
+  parser.add_argument(
+    '-v', '--verbose', help='increase output verbosity',
+    action='store_true')
+  parser.add_argument(
+    '-i', '--interactive', help='write input using stdin',
+    action='store_true')
+  parser.add_argument(
+    '-n', '--natural', help='natural form output format',
+    action='store_true')
+  parser.add_argument(
+    'polynom', nargs='*', help='well formatted one or more polynomial equations')
+  args = parser.parse_args()
+  polynoms = args.polynom
+  if args.interactive:
+    for line in sys.stdin:
+      polynoms.append(line)
+  elif len(polynoms) == 0:
+    print("usage: computor [-h] [-v] [-i] [-n] polynom [polynom ...]")
+    print("computor: error: the following arguments are required: polynom")
+    sys.exit()
+  multi = len(args.polynom)
+  for polynom in polynoms:
+    if polynom.strip():
+      try:
+        computor(polynom, args.verbose, multi, args.natural, len(polynoms))
+      except Exception as e:
+        if args.verbose:
+          print('error:', e)
+        else:
+          print('error')
+        continue
+    multi -= 1
+
+
+if __name__ == '__main__':
+  _main()
